@@ -152,7 +152,7 @@
     // Function to fetch JSON data from a file
     async function fetchData() {
         try {
-            const response = await fetch('data.json');
+            const response = await fetch('assests/data.json');
             jsonData = await response.json();
 
             if (!Array.isArray(jsonData)) {
