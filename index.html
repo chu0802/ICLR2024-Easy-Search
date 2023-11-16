@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Data Visualization</title>
+    <link rel="stylesheet" href="assests/style.css">
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>Research Paper Details</h1>
+        <!-- Add a search input -->
+        <input type="text" id="searchInput" placeholder="Search by title..." oninput="filterTitles()">
+        <!-- Display the number of papers -->
+        <p id="paperCounter">Total Papers: 0</p>
+    </div>
+
+    <div class="content" id="dataContainer"></div>
+</div>
+
+
+
+<script>
+    let jsonData;
+    let lastRenderedIndex = 0;
+    const batchSize = 5;
+    const container = document.getElementById('dataContainer');
+    const paperCounter = document.getElementById('paperCounter');
+    const searchInput = document.getElementById('searchInput');
+
+
+    // Function to render a paper
+    function renderPaper(data, index) {
+        const paperDiv = document.createElement('div');
+        paperDiv.classList.add('paper');
+
+        // Display basic information
+        paperDiv.innerHTML += `<h2>${data.title || 'Title not available'}</h2>`;
+        paperDiv.innerHTML += `<p class="meta">ID: ${data.id || 'ID not available'} | Number: ${data.number || 'Number not available'}</p>`;
+        paperDiv.innerHTML += `<p>Average Score: ${data.avg_score !== undefined ? data.avg_score.toFixed(2) : 'Score not available'}</p>`;
+        paperDiv.innerHTML += `<p>Average Confidence: ${data.avg_conf !== undefined ? data.avg_conf.toFixed(2) : 'Confidence not available'}</p>`;
+        paperDiv.innerHTML += `<a class="link" href="${data.forum_url || '#'}" target="_blank">Read More on the Forum</a>`;
+        paperDiv.innerHTML += `<a class="link" href="${data.pdf_url || '#'}" target="_blank">Download PDF</a><br><br>`;
+
+        // Display reviews
+        paperDiv.innerHTML += '<h3>Reviews:</h3>';
+        if (data.reviews && data.reviews.length > 0) {
+            data.reviews.forEach((review, reviewIndex) => {
+                paperDiv.innerHTML += '<div class="review">';
+                paperDiv.innerHTML += `<p class="review-info">Review ${reviewIndex + 1}: Rating - ${review.rating || 'N/A'}, Confidence - ${review.confidence !== undefined ? review.confidence : 'N/A'}</p>`;
+                paperDiv.innerHTML += '</div>';
+            });
+        } else {
+            paperDiv.innerHTML += '<p>No reviews available.</p>';
+        }
+
+        paperDiv.innerHTML += '<hr>'; // Add a horizontal line to separate papers
+        container.appendChild(paperDiv);
+    }
+
+    // Function to render papers based on the search input
+    function renderFilteredPapers() {
+        if (!jsonData) return;
+
+        const filteredData = filterTitles(searchInput.value);
+
+        container.innerHTML = ''; // Clear existing content
+        visiblePapers = 0;
+
+        for (let i = 0; i < Math.min(filteredData.length, batchSize); i++) {
+            renderPaper(filteredData[i], i);
+        }
+
+        updatePaperCounter(filteredData.length);
+
+        // Trigger lazy loading
+        if (filteredData.length > batchSize) {
+            observeLazyLoading();
+        }
+    }
+
+    // Function to update the paper counter
+    function updatePaperCounter(count) {
+        paperCounter.innerText = `Total Papers: ${count}`;
+    }
+
+    // Function to filter titles based on the search input
+    function filterTitles(searchTerm) {
+        if (!searchTerm) {
+            return jsonData;
+        }
+
+        const lowerSearchTerm = searchTerm.toLowerCase();
+        return jsonData.filter(data => data.title.toLowerCase().includes(lowerSearchTerm));
+    }
+
+    // Function to handle search input changes
+    function handleSearchInput() {
+        // Reset settings
+        lastRenderedIndex = 0;
+        container.innerHTML = ''; // Clear existing content
+        observeLazyLoading(); // Re-observe lazy loading for the new search results
+        renderFilteredPapers();
+    }
+    // Attach event listener to search input
+    searchInput.addEventListener('input', handleSearchInput);
+
+    // Function to observe lazy loading
+    function observeLazyLoading() {
+        const observer = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    lazyLoadPapers();
+                }
+            });
+        }, { threshold: 0.5 });
+
+        const placeholder = document.createElement('div');
+        container.appendChild(placeholder);
+        observer.observe(placeholder);
+
+        // Listen for scroll events to check if the user has reached the bottom of the page
+        window.addEventListener('scroll', () => {
+            const isAtBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight;
+            if (isAtBottom) {
+                lazyLoadPapers();
+            }
+        });
+    }
+
+    // Function to lazy load additional papers
+    function lazyLoadPapers() {
+        const filteredData = filterTitles(searchInput.value);
+        const remainingPapers = filteredData.length - lastRenderedIndex;
+        const papersToRender = Math.min(remainingPapers, batchSize);
+
+        for (let i = 0; i < papersToRender; i++) {
+            renderPaper(filteredData[lastRenderedIndex + i], lastRenderedIndex + i);
+        }
+
+        lastRenderedIndex += papersToRender;
+
+        if (lastRenderedIndex < filteredData.length) {
+            // Move the placeholder down the list
+            const placeholder = document.createElement('div');
+            container.appendChild(placeholder);
+        }
+    }
+
+    // Function to fetch JSON data from a file
+    async function fetchData() {
+        try {
+            const response = await fetch('data.json');
+            jsonData = await response.json();
+
+            if (!Array.isArray(jsonData)) {
+                console.error('Error: JSON data is not an array.');
+                return;
+            }
+
+            // Sort papers by average score (descending order)
+            jsonData.sort((a, b) => b.avg_score - a.avg_score);
+
+            renderFilteredPapers(); // Render the initial batch of papers based on the search input
+
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        }
+    }
+
+    // Call the function to fetch and render data
+    fetchData();
+</script>
+
+
+
+</body>
+</html>
